@@ -1,0 +1,41 @@
+name: Auto-build dash.html (ha-config branch)
+
+# Rebuild dash.html on every push to the ha-config branch whenever the
+# inputs that feed the build change. The committed dash.html is what the
+# dashboard serves, so keeping it in sync with src/** avoids drift between
+# source and the bundled file.
+on:
+  push:
+    branches: [ha-config]
+    paths:
+      - "src/**"
+      - "VERSION"
+      - "build.mjs"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Build dash.html
+        run: node build.mjs
+
+      - name: Commit dash.html if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- dash.html; then
+            echo "dash.html unchanged, nothing to commit."
+          else
+            git add dash.html
+            git commit -m "chore: auto-build dash.html [skip ci]"
+            git push
+          fi
