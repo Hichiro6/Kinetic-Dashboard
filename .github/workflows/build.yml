@@ -15,9 +15,16 @@ jobs:
         with:
           node-version: 22
 
-      # 1. dash.html in the repo must be exactly what src/ builds to
+      # 1. dash.html in the repo must be exactly what src/ builds to.
+      # On PRs into ha-config, the committed dash.html intentionally lags behind
+      # the source so the auto-build workflow can update it; rebuild it locally
+      # in that case instead of failing the --check.
       - name: dash.html is up to date
+        if: github.base_ref != 'ha-config'
         run: node build.mjs --check
+      - name: Rebuild dash.html (PR into ha-config)
+        if: github.base_ref == 'ha-config'
+        run: node build.mjs
 
       # 2. every source script must be valid JavaScript
       - name: Syntax check
