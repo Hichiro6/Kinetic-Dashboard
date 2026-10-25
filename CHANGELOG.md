@@ -4,6 +4,65 @@ All notable changes to Kinetic, newest first. The version is the number in the `
 
 Versions are `MAJOR.MINOR.PATCH`. Bug fixes raise the patch number (1.0.0 to 1.0.1), new features raise the minor number (1.0.1 to 1.1.0), and big changes raise the major number (2.0.0). When a release is published, its notes are taken from the matching section below.
 
+## 1.13.0 - 2026-10-25
+
+### Added
+- **12- or 24-hour clock:** Theme page > Clock chooses DEVICE (follows the language of that phone or tablet), 12-HOUR or 24-HOUR, saved on that device. `clock: "12"` or `"24"` in config.js sets the default for every device. It applies to every time the dashboard shows: the header clock, event and forecast times, detections, recording times and the day strip in Playback, hazards, the long-press info and the Energy page's peak hour.
+
+### Changed
+- **The header clock follows the device's language when nothing is chosen.** It was always 24-hour (the rest of the times already followed the device), so on a phone or tablet set to a 12-hour language it now shows 12-hour. Pick 24-HOUR on the Theme page, or set `clock: "24"`, to keep the old look.
+- **The Energy page's peak hour, Playback's recording times and the day strip's hour labels** are shown as `15:00–16:00`, `15:05:12` and `15:00` on a 24-hour clock; they were always 12-hour (`3pm–4pm`, `3:05:12 pm`, `3pm`).
+
+### Tests
+- New checks for the clock setting (`tests/clock-format.mjs`).
+
+## 1.12.0 - 2026-10-25
+
+This release rolls up the work since 1.11.0 (the small versions in between, 1.11.1 to 1.12.1.1, were never published on their own).
+
+### Added
+- **Boxes on a live camera (`detectLive: true`, needs `detectAI`):** a camera you tap to full screen, and a single camera on the camera page, gets the same boxes as a recording, for people, cars and animals. Only the camera you opened is looked at, and closing it stops the recogniser. Off by default. There is no lookahead on live (it cannot see the future), so a fast mover is boxed a little behind. A person standing still is kept boxed when the model is very sure. Two cameras side by side on the camera page are not marked (heavy, and laid out differently).
+
+### Changed
+- **Full screen no longer freezes the picture while the clear stream connects:** the light stream keeps playing until the clear one has its first picture, then it swaps over (and the same on the way back). It used to stop the light stream first and show a still picture for the few seconds the clear stream took. If the clear stream does not arrive within 8 seconds, the light one stays. The connection time itself is unchanged; for a shorter wait, a shorter keyframe interval on the camera's main stream and H.264 help.
+- **Boxes trail a fast mover less:** a box keeps a small lead (it slides for a moment on its way, so it is aimed a little ahead), the speed of the last two looks counts more, the speed limit is higher (a child on a scooter, a quick runner), and the slide itself is shorter. With the recogniser answering as fast as a phone does, the box stays within about 5-10 px of a walker instead of 10-20 px behind; with `lookahead` on it sits right on the person.
+
+### Fixed
+- **Fast cars on recordings:** a car crossing the picture in a second or two was often not boxed. The model did see it, but whole-picture looks (the only ones that find cars) were crowded out by close-ups on the moving spot, and a car had to travel a fair distance (or be seen twice) before it showed. With Vehicle tagged, the whole picture is now looked at straight away and again every fraction of a second while something moves, and a car with movement under it that the model is 60% sure of is shown after one look.
+
+### Tests
+- New checks for live boxes, the camera page, the stream swap (`tests/cam-stream-swap.mjs`), a fast car, and how close the box stays to a walker.
+
+## 1.11.0 - 2026-10-25
+
+This release rolls up the work since 1.6.8 (the small versions in between, 1.6.8.1 to 1.10.1, were never published on their own).
+
+### Added
+- **Marks on recordings** (Playback and Detections): the person, car or animal that moves is boxed. `detectMark: "brackets"` (default), `"box"`, `"glow"` or `false`; only clips the camera tagged Person / Vehicle / Animal are marked. Without any recogniser the boxes follow movement only (background model, tracks, a kind per box).
+- **Recognising with `detectAI`** so a shadow, a bush or a light change is not boxed:
+  - `engine: "yolox"` (Apache-2.0), with `model: "/local/yolox_tiny.onnx"` hosted by you in Home Assistant's www folder, and onnxruntime-web loaded from the internet. Falls back to movement boxes when it cannot load or is too slow (`maxMs`).
+  - `size`: read from the model file, so the bigger, more accurate `yolox_s.onnx` (about 4x slower) runs at its own 640.
+  - `gpu: true`: the phone's graphics chip (WebGPU) does the recognising, with the processor as the fall-back (about 25 MB more to load the first time).
+  - `lookahead: 0.8` (recordings only, off by default): a hidden second copy of the recording plays a little ahead, so the box is ready before the picture reaches the person and no longer trails a walking person. A paused recording still looks at the exact picture shown. It needs a second video decoder and switches itself off if it cannot keep up.
+  - `debug: true` (or `?mkdebug` in the address): a small chip with the version, the speed and the picture size, or why only movement boxes are used.
+- **Day strip on Playback:** one coloured bar per clip showing where it sits in the day; tap one to play it.
+- **Own recording-player controls** in Playback and Detections: pinching is easy, full screen keeps the zoom, and there is one play button.
+- **`camFullscreen: false`** (config.js): on phones the full-screen camera fills the screen without asking the browser for real full screen, so there is no blink when it opens or closes and the system bars stay.
+
+### Changed
+- **Camera full-screen open / close animation:** a solid black card, and the picture dissolves into the waiting tile instead of jumping.
+- **Fewer false boxes:** a person has to be upright and sure enough (more sure when standing still), a car has to be seen twice and travel, a "car" hardly bigger than the person standing in it is dropped, and an unconfirmed box goes after 0.9 s.
+- **Boxes follow better:** each box moves on at the speed it had since the last two looks, and a new look is matched to where the person should be by now, so someone walking quickly no longer gets a second box.
+
+### Fixed
+- **Marks on a paused recording:** the box stays on the person; it no longer walks on and disappears.
+- **Labels on the marks:** two people close together no longer wear their labels on top of each other, and a box at the edge puts its label below or inside it. Also when zoomed in.
+- **Detections pop-up on a landscape phone:** the card shrinks to fit the screen (clear of the notch), so the close button and play bar are reachable.
+- **Recordings screen on the camera page:** the Playback pill no longer sits on the "Recordings" heading, the close X is in the heading row (not on BACK), the live controls are hidden while recordings are open, and the panel is opaque. On a short landscape phone the list is on the left and the recording beside it.
+
+### Tests
+- New checks for the marks and recogniser (`tests/detection-marks.mjs`), the mobile layouts (`tests/layout-mobile.mjs`), and `camFullscreen: false` (`tests/cam-no-native.mjs`).
+
 ## 1.6.8 - 2026-10-24
 
 ### Fixed
