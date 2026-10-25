@@ -9,8 +9,11 @@ on:
     branches: [ha-config]
     paths:
       - "src/**"
+      - "tests/**"
       - "VERSION"
       - "build.mjs"
+      - "package.json"
+      - ".github/workflows/**"
 
 permissions:
   contents: write
@@ -23,19 +26,43 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
 
       - name: Build dash.html
         run: node build.mjs
+
+      # 1. every source script must be valid JavaScript
+      - name: Syntax check
+        run: |
+          for f in $(find src/js -name '*.js' | sort); do node --check "$f"; done
+
+      # 2. boot the built file in a real browser before committing it
+      - name: Install test browser
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Smoke test
+        run: node tests/smoke.mjs
+      - name: Garage alert test
+        run: node tests/garage-alert.mjs
+      - name: Landscape / full screen test
+        run: node tests/landscape.mjs
+      - name: Irrigation test
+        run: node tests/irrigation.mjs
+      - name: View page full screen test
+        run: node tests/view-fullscreen.mjs
 
       - name: Commit dash.html if it changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Only stage dash.html so node_modules / package-lock changes are
+          # never committed back to ha-config by this workflow.
           if git diff --quiet -- dash.html; then
             echo "dash.html unchanged, nothing to commit."
           else
             git add dash.html
             git commit -m "chore: auto-build dash.html [skip ci]"
-            git push
+            git push origin HEAD:ha-config
           fi
